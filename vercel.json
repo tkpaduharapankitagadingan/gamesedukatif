@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "game.tkpaduharapankitagadingan.sch.id"
+        }
+      ],
+      "destination": "https://games.tkpaduharapankitagadingan.sch.id/:path*",
+      "permanent": true
+    }
+  ]
+}

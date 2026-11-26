@@ -1,0 +1,6 @@
+{
+  "name": "Kebun Pintar - TK Paud Harapan Kita Gadingan",
+  "description": "Game APE interaktif edukatif untuk pengembangan kognitif dan motorik anak usia dini TK Paud Harapan Kita Gadingan",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
