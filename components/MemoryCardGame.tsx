@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ArrowLeft, Sparkles, Volume2, RotateCcw, Grid } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Sparkles, Volume2, RotateCcw, Grid, Eye } from 'lucide-react';
 import { soundManager } from '@/lib/audio';
 import confetti from 'canvas-confetti';
 
@@ -29,7 +29,9 @@ const PAIRS = [
   { pairId: 'rainbow', name: 'Pelangi', emoji: '🌈' },
 ];
 
-function createDeck(): CardTile[] {
+const PREVIEW_SECONDS = 4;
+
+function createDeck(initialFlipped: boolean = true): CardTile[] {
   const doubled = [...PAIRS, ...PAIRS];
   return doubled
     .sort(() => Math.random() - 0.5)
@@ -38,7 +40,7 @@ function createDeck(): CardTile[] {
       pairId: item.pairId,
       name: item.name,
       emoji: item.emoji,
-      flipped: false,
+      flipped: initialFlipped,
       matched: false,
     }));
 }
@@ -48,20 +50,75 @@ export default function MemoryCardGame({
   onBack,
   onCompleteRound,
 }: MemoryCardGameProps) {
-  const [cards, setCards] = useState<CardTile[]>(createDeck);
+  // Start with all cards face-up for 4 seconds so the child can memorize positions
+  const [cards, setCards] = useState<CardTile[]>(() => createDeck(true));
+  const [previewTimeLeft, setPreviewTimeLeft] = useState<number>(PREVIEW_SECONDS);
+  const [isPeeking, setIsPeeking] = useState<boolean>(false);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [isLocked, setIsLocked] = useState(false);
-  const [matchesCount, setMatchesCount] = useState(0);
-  const [movesCount, setMovesCount] = useState(0);
-  const [feedback, setFeedback] = useState('Buka 2 kartu dan cari pasangan gambar yang sama!');
-  const [isFinished, setIsFinished] = useState(false);
+  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [matchesCount, setMatchesCount] = useState<number>(0);
+  const [movesCount, setMovesCount] = useState<number>(0);
+  const [feedback, setFeedback] = useState<string>(
+    'Perhatikan dan ingat posisi semua kartu yang terbuka ya!'
+  );
+  const [isFinished, setIsFinished] = useState<boolean>(false);
+
+  const peekTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 4-second initial reveal countdown before flipping cards face-down
+  useEffect(() => {
+    if (previewTimeLeft <= 0) return;
+
+    const timer = setTimeout(() => {
+      const nextTime = previewTimeLeft - 1;
+      setPreviewTimeLeft(nextTime);
+
+      if (nextTime > 0) {
+        soundManager.playTick(false);
+      } else {
+        // Countdown finished -> flip all unmatched cards face down
+        soundManager.playTick(true);
+        soundManager.playFlip();
+        setCards((prev) =>
+          prev.map((c) => (c.matched ? c : { ...c, flipped: false }))
+        );
+        setFeedback('Sekarang buka 2 kartu dan cari pasangan gambar yang sama!');
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [previewTimeLeft]);
+
+  // Cleanup peek timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
+    };
+  }, []);
+
+  const handlePeekCards = () => {
+    if (previewTimeLeft > 0 || isPeeking || isLocked || isFinished) return;
+
+    soundManager.playFlip();
+    soundManager.speak('Intip sebentar posisi kartunya ya!');
+    setIsPeeking(true);
+    setFeedback('👀 Mengintip semua kartu selama 2 detik...');
+
+    if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
+    peekTimeoutRef.current = setTimeout(() => {
+      soundManager.playFlip();
+      setIsPeeking(false);
+      setFeedback('Ayo lanjutkan mencari pasangan kartu yang sama!');
+    }, 2000);
+  };
 
   const handleCardTap = (index: number) => {
-    if (isLocked) return;
+    // Prevent tapping while initial 4s preview or 2s peek is active
+    if (previewTimeLeft > 0 || isPeeking || isLocked) return;
     const tapped = cards[index];
     if (tapped.flipped || tapped.matched) return;
 
-    soundManager.playPop();
+    soundManager.playFlip();
 
     const updated = cards.map((c, idx) =>
       idx === index ? { ...c, flipped: true } : c
@@ -108,8 +165,12 @@ export default function MemoryCardGame({
         }, 550);
       } else {
         // Not a match
-        setFeedback(`Belum sama (${firstCard.name} & ${secondCard.name}). Ayo ingat posisinya!`);
+        soundManager.playGentleTryAgain();
+        setFeedback(
+          `Belum sama (${firstCard.name} & ${secondCard.name}). Ayo ingat posisinya!`
+        );
         setTimeout(() => {
+          soundManager.playFlip();
           setCards((prev) =>
             prev.map((c, idx) =>
               idx === firstIdx || idx === secondIdx ? { ...c, flipped: false } : c
@@ -117,32 +178,38 @@ export default function MemoryCardGame({
           );
           setSelectedIndices([]);
           setIsLocked(false);
-        }, 900);
+        }, 1050);
       }
     }
   };
 
   const handleRestart = () => {
-    soundManager.playPop();
-    setCards(createDeck());
+    if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
+    soundManager.playFlip();
+    soundManager.speak('Kartu diacak! Lihat dan ingat posisi gambarnya selama 4 detik ya!');
+    setCards(createDeck(true));
     setSelectedIndices([]);
     setMatchesCount(0);
     setMovesCount(0);
     setIsLocked(false);
+    setIsPeeking(false);
     setIsFinished(false);
-    setFeedback('Kartu sudah diacak! Ayo cari pasangannya lagi!');
+    setPreviewTimeLeft(PREVIEW_SECONDS);
+    setFeedback('Perhatikan dan ingat posisi semua kartu yang terbuka ya!');
   };
+
+  const isAllRevealedPreview = previewTimeLeft > 0 || isPeeking;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-500 via-emerald-500 to-lime-500 flex flex-col p-4 sm:p-8">
       {/* Top Header */}
-      <div className="max-w-3xl mx-auto w-full flex items-center justify-between mb-6">
+      <div className="max-w-3xl mx-auto w-full flex flex-wrap items-center justify-between gap-2 mb-6">
         <button
           onClick={() => {
             soundManager.playPop();
             onBack();
           }}
-          className="flex items-center gap-2 bg-white/95 text-slate-700 hover:bg-white px-4 py-2.5 rounded-2xl font-bold shadow-lg transition-all min-h-[44px]"
+          className="flex items-center gap-2 bg-white/95 text-slate-700 hover:bg-white px-4 py-2.5 rounded-2xl font-bold shadow-lg transition-all min-h-[44px] cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Portal Game</span>
@@ -152,13 +219,28 @@ export default function MemoryCardGame({
           <span>Pasangan: {matchesCount}/{PAIRS.length} 🌟</span> · Langkah: {movesCount}
         </div>
 
-        <button
-          onClick={handleRestart}
-          className="bg-white/95 p-3 rounded-2xl shadow-lg text-emerald-700 hover:bg-white transition-all flex items-center gap-1 font-bold text-xs min-h-[44px]"
-        >
-          <RotateCcw className="w-5 h-5" />
-          <span className="hidden sm:inline">Acak Ulang</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePeekCards}
+            disabled={isAllRevealedPreview || isFinished}
+            className={`px-3.5 py-2.5 rounded-2xl shadow-lg transition-all flex items-center gap-1.5 font-extrabold text-xs min-h-[44px] ${
+              isAllRevealedPreview
+                ? 'bg-amber-200 text-amber-900 opacity-75 cursor-not-allowed'
+                : 'bg-amber-400 hover:bg-amber-500 text-amber-950 cursor-pointer'
+            }`}
+          >
+            <Eye className="w-5 h-5" />
+            <span>Intip Sebentar</span>
+          </button>
+
+          <button
+            onClick={handleRestart}
+            className="bg-white/95 p-3 rounded-2xl shadow-lg text-emerald-700 hover:bg-white transition-all flex items-center gap-1 font-bold text-xs min-h-[44px] cursor-pointer"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span className="hidden sm:inline">Acak Ulang</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Arena */}
@@ -170,23 +252,38 @@ export default function MemoryCardGame({
               <span>KECERDASAN VISUAL & DAYA INGAT · KARTU MEMORI</span>
             </div>
 
-            <div className="flex items-center justify-center gap-2 mb-5">
-              <p className="text-base sm:text-lg font-bold text-slate-700">
-                {feedback}
-              </p>
-              <button
-                onClick={() => soundManager.speak(feedback)}
-                className="p-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100"
-                aria-label="Bacakan"
-              >
-                <Volume2 className="w-5 h-5" />
-              </button>
-            </div>
+            {/* Countdown Banner when initial 4-second reveal or 2-second peek is active */}
+            {previewTimeLeft > 0 ? (
+              <div className="mb-5 bg-amber-100 border-2 border-amber-400 rounded-2xl py-2.5 px-4 inline-flex items-center gap-3 shadow-sm animate-pulse">
+                <span className="text-2xl">👀</span>
+                <span className="text-sm sm:text-base font-extrabold text-amber-950">
+                  Ingat gambarnya ya! Kartu menutup dalam{' '}
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500 text-white font-black tabular-nums">
+                    {previewTimeLeft}
+                  </span>{' '}
+                  detik...
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 mb-5">
+                <p className="text-base sm:text-lg font-bold text-slate-700">
+                  {feedback}
+                </p>
+                <button
+                  onClick={() => soundManager.speak(feedback)}
+                  className="p-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100 cursor-pointer"
+                  aria-label="Bacakan"
+                >
+                  <Volume2 className="w-5 h-5" />
+                </button>
+              </div>
+            )}
 
             {/* 4x3 Card Grid */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4 max-w-xl mx-auto">
               {cards.map((card, index) => {
-                const isRevealed = card.flipped || card.matched;
+                const isRevealed =
+                  card.flipped || card.matched || previewTimeLeft > 0 || isPeeking;
                 return (
                   <button
                     key={card.uid}
@@ -235,13 +332,13 @@ export default function MemoryCardGame({
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleRestart}
-                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg transition-all"
+                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg transition-all cursor-pointer"
               >
                 Main Lagi 🔄
               </button>
               <button
                 onClick={onBack}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 px-6 rounded-2xl shadow-sm transition-all"
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 px-6 rounded-2xl shadow-sm transition-all cursor-pointer"
               >
                 Pilih Game Lain 🏡
               </button>

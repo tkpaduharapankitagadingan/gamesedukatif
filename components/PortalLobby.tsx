@@ -7,10 +7,12 @@ import {
   Volume2,
   VolumeX,
   Play,
-  UserCheck,
   Edit3,
   Check,
   Star,
+  Calendar,
+  Gift,
+  RefreshCw,
 } from 'lucide-react';
 import { soundManager } from '@/lib/audio';
 
@@ -23,24 +25,42 @@ export type PortalGameId =
   | 'alphabet'
   | 'memory'
   | 'pattern'
-  | 'social';
+  | 'social'
+  | 'color_studio'
+  | 'profession'
+  | 'maze'
+  | 'eco_sort';
 
 export type IntelligenceCategory =
   | 'all'
   | 'naturalis'
-  | 'musikal'
-  | 'bahasa'
-  | 'visual'
+  | 'musikal_seni'
+  | 'bahasa_profesi'
+  | 'visual_spasial'
   | 'logika'
   | 'sosial';
+
+export interface DailyChallengeTask {
+  dateKey: string;
+  gameId: PortalGameId;
+  gameTitle: string;
+  gameEmoji: string;
+  description: string;
+  targetCount: number;
+  currentCount: number;
+  rewardStars: number;
+  completed: boolean;
+}
 
 interface PortalLobbyProps {
   childName: string;
   childAvatar: string;
   earnedStars: number;
   completedGames: Record<string, number>;
+  dailyChallenge: DailyChallengeTask;
   onUpdateProfile: (name: string, avatar: string) => void;
   onLaunchGame: (gameId: PortalGameId) => void;
+  onGenerateNewChallenge: () => void;
   onOpenStickers: () => void;
   onOpenCertificate: () => void;
 }
@@ -48,17 +68,18 @@ interface PortalLobbyProps {
 const AVATARS = ['🦁', '🐰', '🐼', '🦊', '🐱', '🐨', '🐸', '🦄'];
 
 const CATEGORIES: { id: IntelligenceCategory; label: string; emoji: string }[] = [
-  { id: 'all', label: 'Semua Game', emoji: '🌟' },
-  { id: 'naturalis', label: 'Kebun Pintar (Alam)', emoji: '🌿' },
-  { id: 'musikal', label: 'Nada & Musik', emoji: '🎵' },
-  { id: 'bahasa', label: 'Huruf & Bahasa', emoji: '📚' },
-  { id: 'visual', label: 'Memori Visual', emoji: '🧠' },
+  { id: 'all', label: 'Semua (10 Game)', emoji: '🌟' },
+  { id: 'naturalis', label: 'Alam & Lingkungan', emoji: '🌿' },
+  { id: 'musikal_seni', label: 'Musik & Seni Warna', emoji: '🎨' },
+  { id: 'bahasa_profesi', label: 'Huruf & Cita-Cita', emoji: '📚' },
+  { id: 'visual_spasial', label: 'Memori & Labirin', emoji: '🧠' },
   { id: 'logika', label: 'Logika & Pola', emoji: '🚂' },
   { id: 'sosial', label: 'Mandiri & Berbagi', emoji: '💖' },
 ];
 
-interface GameCatalogItem {
+export interface GameCatalogItem {
   id: PortalGameId;
+  numberBadge: string;
   title: string;
   subtitle: string;
   intelligenceLabel: string;
@@ -71,15 +92,16 @@ interface GameCatalogItem {
   subActivities?: { id: PortalGameId; label: string; emoji: string }[];
 }
 
-const GAME_CATALOG: GameCatalogItem[] = [
+export const GAME_CATALOG: GameCatalogItem[] = [
   {
     id: 'kebun_pintar_hub',
+    numberBadge: 'Game #1',
     title: 'Kebun Pintar Harapan Kita',
     subtitle: '3 Permainan: Panen Buah & Warna, Hitung Bunga, dan Tebak Bentuk Hewan.',
     intelligenceLabel: 'Kecerdasan Naturalis & Kognitif',
     category: 'naturalis',
     emoji: '🌻',
-    badgeText: '3 Mini-Game di Dalam',
+    badgeText: '3 Sub-Game Kebun',
     cardStyle: 'border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-lime-50',
     btnStyle: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     voiceIntro: 'Kebun Pintar Harapan Kita! Mari memanen buah, menghitung bunga, dan menebak hewan!',
@@ -91,42 +113,46 @@ const GAME_CATALOG: GameCatalogItem[] = [
   },
   {
     id: 'music',
+    numberBadge: 'Game #2',
     title: 'Gambang & Piano Ceria',
     subtitle: 'Mainkan tangga nada Do-Re-Mi-Fa-Sol-La-Si-Do dan tirukan lagu anak Indonesia.',
     intelligenceLabel: 'Kecerdasan Musikal & Irama',
-    category: 'musikal',
+    category: 'musikal_seni',
     emoji: '🎹',
-    badgeText: 'Suara Musik Interaktif',
+    badgeText: 'Musik Interaktif',
     cardStyle: 'border-purple-400 bg-gradient-to-br from-purple-50 via-white to-fuchsia-50',
     btnStyle: 'bg-purple-600 hover:bg-purple-700 text-white',
     voiceIntro: 'Gambang dan Piano Ceria! Ayo belajar tangga nada dan bermain musik!',
   },
   {
     id: 'alphabet',
+    numberBadge: 'Game #3',
     title: 'Petualangan Huruf & Suara',
     subtitle: 'Kenali bunyi huruf awal A sampai Z beserta gambar buah, benda, dan hewan lucu.',
     intelligenceLabel: 'Kecerdasan Bahasa & Linguistik',
-    category: 'bahasa',
+    category: 'bahasa_profesi',
     emoji: '🔤',
-    badgeText: 'Panduan Suara Indonesia',
+    badgeText: 'Suara Bahasa Indonesia',
     cardStyle: 'border-indigo-400 bg-gradient-to-br from-indigo-50 via-white to-sky-50',
     btnStyle: 'bg-indigo-600 hover:bg-indigo-700 text-white',
     voiceIntro: 'Petualangan Huruf dan Suara! Ayo belajar mengenal huruf awal dan membaca kata!',
   },
   {
     id: 'memory',
+    numberBadge: 'Game #4',
     title: 'Kartu Memori Pasangan',
-    subtitle: 'Buka kartu yang tertutup dan temukan dua gambar kebun dan sekolah yang kembar.',
+    subtitle: 'Kartu terbuka 4 detik di awal! Ingat posisinya dan temukan pasangan gambar kembar.',
     intelligenceLabel: 'Kecerdasan Visual & Daya Ingat',
-    category: 'visual',
+    category: 'visual_spasial',
     emoji: '🃏',
-    badgeText: 'Latihan Konsentrasi',
+    badgeText: 'Preview 4 Detik + Intip',
     cardStyle: 'border-teal-400 bg-gradient-to-br from-teal-50 via-white to-cyan-50',
     btnStyle: 'bg-teal-600 hover:bg-teal-700 text-white',
-    voiceIntro: 'Kartu Memori Pasangan! Ayo latih daya ingatmu mencari gambar yang sama!',
+    voiceIntro: 'Kartu Memori Pasangan! Ingat gambarnya selama 4 detik lalu cari pasangannya!',
   },
   {
     id: 'pattern',
+    numberBadge: 'Game #5',
     title: 'Kereta Pola & Logika',
     subtitle: 'Lengkapi muatan gerbong kereta api sesuai urutan warna, bentuk, dan pola gambar.',
     intelligenceLabel: 'Kecerdasan Logika-Matematika',
@@ -139,6 +165,7 @@ const GAME_CATALOG: GameCatalogItem[] = [
   },
   {
     id: 'social',
+    numberBadge: 'Game #6',
     title: 'Anak Mandiri & Berbagi',
     subtitle: 'Cerita interaktif memilih kebiasaan baik, merapikan mainan, cuci tangan, dan berbagi.',
     intelligenceLabel: 'Kecerdasan Sosial-Emosional',
@@ -149,6 +176,58 @@ const GAME_CATALOG: GameCatalogItem[] = [
     btnStyle: 'bg-rose-500 hover:bg-rose-600 text-white',
     voiceIntro: 'Anak Mandiri dan Berbagi! Ayo belajar kebiasaan anak hebat dan sopan santun!',
   },
+  {
+    id: 'color_studio',
+    numberBadge: 'Game #7',
+    title: 'Kanvas & Campur Warna',
+    subtitle: 'Campurkan cat warna dasar (Merah, Kuning, Biru, Putih) untuk mewarnai objek menarik!',
+    intelligenceLabel: 'Kecerdasan Seni & Kreativitas',
+    category: 'musikal_seni',
+    emoji: '🎨',
+    badgeText: 'Eksperimen Warna',
+    cardStyle: 'border-pink-400 bg-gradient-to-br from-pink-50 via-white to-amber-50',
+    btnStyle: 'bg-pink-600 hover:bg-pink-700 text-white',
+    voiceIntro: 'Kanvas dan Campur Warna! Ayo berkreasi mencampur cat warna-warni!',
+  },
+  {
+    id: 'profession',
+    numberBadge: 'Game #8',
+    title: 'Profesi & Cita-Citaku',
+    subtitle: 'Kenali pekerjaan mulia seperti Dokter, Guru, Pemadam, Pilot, dan Koki beserta alatnya.',
+    intelligenceLabel: 'Kecerdasan Pengetahuan Umum',
+    category: 'bahasa_profesi',
+    emoji: '🧑‍🚒',
+    badgeText: 'Mengenal Cita-Cita',
+    cardStyle: 'border-sky-400 bg-gradient-to-br from-sky-50 via-white to-blue-50',
+    btnStyle: 'bg-sky-600 hover:bg-sky-700 text-white',
+    voiceIntro: 'Profesi dan Cita-Citaku! Ayo mengenal pekerjaan hebat dan kendaraan mereka!',
+  },
+  {
+    id: 'maze',
+    numberBadge: 'Game #9',
+    title: 'Labirin Petualang Cilik',
+    subtitle: 'Arahkan langkah Kelinci, Lebah, dan Bebek melewati peta taman menuju tujuannya.',
+    intelligenceLabel: 'Kecerdasan Spasial & Motorik',
+    category: 'visual_spasial',
+    emoji: '🧭',
+    badgeText: 'Navigasi Arah',
+    cardStyle: 'border-green-400 bg-gradient-to-br from-green-50 via-white to-emerald-50',
+    btnStyle: 'bg-green-600 hover:bg-green-700 text-white',
+    voiceIntro: 'Labirin Petualang Cilik! Ayo tuntun langkah teman hewan melewati jalan taman!',
+  },
+  {
+    id: 'eco_sort',
+    numberBadge: 'Game #10',
+    title: 'Pilah Sampah & Lingkungan',
+    subtitle: 'Jaga kebersihan sekolah dengan memilah sampah Organik, Kertas, dan Plastik ke tongnya.',
+    intelligenceLabel: 'Kecerdasan Ekologi & Alam',
+    category: 'naturalis',
+    emoji: '♻️',
+    badgeText: 'Cinta Lingkungan',
+    cardStyle: 'border-lime-400 bg-gradient-to-br from-lime-50 via-white to-emerald-50',
+    btnStyle: 'bg-lime-600 hover:bg-lime-700 text-white',
+    voiceIntro: 'Pilah Sampah dan Jaga Lingkungan! Ayo bersihkan taman sekolah kita!',
+  },
 ];
 
 export default function PortalLobby({
@@ -156,8 +235,10 @@ export default function PortalLobby({
   childAvatar,
   earnedStars,
   completedGames,
+  dailyChallenge,
   onUpdateProfile,
   onLaunchGame,
+  onGenerateNewChallenge,
   onOpenStickers,
   onOpenCertificate,
 }: PortalLobbyProps) {
@@ -173,7 +254,9 @@ export default function PortalLobby({
     soundManager.setMuted(nextMuted);
     if (!nextMuted) {
       soundManager.playPop();
-      soundManager.speak(`Halo ${childName}! Selamat datang di Portal Game Edukatif TK Paud Harapan Kita Gadingan!`);
+      soundManager.speak(
+        `Halo ${childName}! Selamat datang di Portal 10 Game Edukatif TK Paud Harapan Kita Gadingan!`
+      );
     }
   };
 
@@ -183,13 +266,18 @@ export default function PortalLobby({
     onUpdateProfile(cleaned, tempAvatar);
     setIsEditingProfile(false);
     soundManager.playSuccess();
-    soundManager.speak(`Halo ${cleaned}! Ayo pilih permainan yang kamu sukai!`);
+    soundManager.speak(`Halo ${cleaned}! Ayo pilih permainan atau selesaikan tantangan harianmu!`);
   };
 
   const filteredGames =
     selectedCategory === 'all'
       ? GAME_CATALOG
       : GAME_CATALOG.filter((g) => g.category === selectedCategory);
+
+  const progressPercent = Math.min(
+    100,
+    Math.round((dailyChallenge.currentCount / dailyChallenge.targetCount) * 100)
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-100 via-emerald-50 to-amber-50 flex flex-col">
@@ -206,7 +294,7 @@ export default function PortalLobby({
                 games.tkpaduharapankitagadingan.sch.id
               </div>
               <div className="text-base sm:text-lg font-black text-slate-900 truncate">
-                Portal Game APE TK Paud Harapan Kita
+                Portal 10 Game APE TK Paud Harapan Kita
               </div>
             </div>
           </div>
@@ -253,17 +341,17 @@ export default function PortalLobby({
       {/* Main Content Container */}
       <div className="max-w-6xl mx-auto w-full flex-1 px-4 sm:px-8 py-6 sm:py-8">
         {/* Hero Welcome & Persistent Child Profile Banner */}
-        <section className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-8 border-4 border-amber-300 relative overflow-hidden">
+        <section className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-6 border-4 border-amber-300 relative overflow-hidden">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
             <div className="text-center lg:text-left max-w-2xl">
               <div className="inline-block bg-white/20 backdrop-blur-sm px-3.5 py-1 rounded-full text-xs font-extrabold tracking-wide mb-3 border border-white/30">
-                PORTAL LAYANAN DIGITAL ANAK USIA DINI · 6 KECERDASAN MAJEMUK
+                PORTAL LAYANAN DIGITAL ANAK USIA DINI · 10 GAME KECERDASAN MAJEMUK
               </div>
               <h1 className="text-2xl sm:text-4xl font-black mb-2 tracking-tight text-balance">
                 Selamat Datang, {childAvatar} {childName}!
               </h1>
               <p className="text-emerald-50 text-sm sm:text-base font-medium leading-relaxed">
-                Pilih permainan edukatif di bawah ini untuk melatih warna, angka, musik, huruf, daya ingat, pola logika, dan sikap mandiri bersama TK Paud Harapan Kita Gadingan.
+                Ayo bermain 10 permainan edukatif dan selesaikan Tantangan Harian untuk mengumpulkan stiker bintang emas serta sertifikat TK Paud Harapan Kita Gadingan!
               </p>
             </div>
 
@@ -349,11 +437,99 @@ export default function PortalLobby({
           </div>
         </section>
 
+        {/* Daily Challenge Widget (Tantangan Harian) */}
+        <section className="mb-8 bg-gradient-to-r from-amber-100 via-yellow-50 to-orange-100 border-4 border-amber-400 rounded-3xl p-5 sm:p-6 shadow-lg">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="flex items-center gap-4 text-center md:text-left flex-col sm:flex-row">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-white border-4 border-amber-400 shadow-md flex items-center justify-center text-4xl sm:text-5xl shrink-0">
+                {dailyChallenge.gameEmoji}
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-800 mb-1">
+                  <Calendar className="w-4 h-4 text-amber-600" />
+                  <span>Tantangan Harian Anak Hebat</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-rose-600 flex items-center gap-1">
+                    <Gift className="w-3.5 h-3.5" />
+                    Bonus +{dailyChallenge.rewardStars} Bintang Emas!
+                  </span>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-1">
+                  {dailyChallenge.description}
+                </h2>
+
+                {/* Progress Bar & Status */}
+                <div className="flex items-center justify-center md:justify-start gap-3 mt-2">
+                  <div className="w-44 sm:w-56 h-3.5 bg-white rounded-full overflow-hidden border border-amber-300 shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-300"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <span className="text-xs sm:text-sm font-extrabold text-amber-950 tabular-nums">
+                    {dailyChallenge.currentCount} / {dailyChallenge.targetCount} Selesai
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Challenge Actions */}
+            <div className="flex items-center gap-2.5 w-full md:w-auto justify-center shrink-0">
+              {!dailyChallenge.completed ? (
+                <>
+                  <button
+                    onClick={() => {
+                      soundManager.playPop();
+                      soundManager.speak(`Ayo kerjakan tantangan harian: ${dailyChallenge.description}`);
+                      onLaunchGame(dailyChallenge.gameId);
+                    }}
+                    className="flex-1 md:flex-initial bg-amber-500 hover:bg-amber-600 text-amber-950 font-black py-3.5 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer min-h-[48px] whitespace-nowrap"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>Mainkan Tantangan</span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      soundManager.speak(
+                        `Tantangan Harian hari ini: ${dailyChallenge.description}. Hadiah bonus ${dailyChallenge.rewardStars} bintang emas!`
+                      )
+                    }
+                    className="p-3.5 rounded-2xl bg-white hover:bg-amber-50 text-amber-800 border-2 border-amber-300 shadow-sm transition-all min-h-[48px] min-w-[48px] flex items-center justify-center cursor-pointer"
+                    title="Bacakan Tantangan Harian"
+                    aria-label="Bacakan Tantangan Harian"
+                  >
+                    <Volume2 className="w-5 h-5" />
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="bg-emerald-600 text-white font-black py-3 px-5 rounded-2xl shadow flex items-center gap-2 text-sm">
+                    <Check className="w-5 h-5" />
+                    <span>Selesai! (+{dailyChallenge.rewardStars} 🌟 Diraih)</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      soundManager.playPop();
+                      onGenerateNewChallenge();
+                    }}
+                    className="bg-white hover:bg-amber-50 text-amber-900 border-2 border-amber-400 font-extrabold py-3 px-4 rounded-2xl shadow-sm flex items-center gap-1.5 text-xs sm:text-sm cursor-pointer min-h-[44px]"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Tantangan Baru</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Intelligence Category Filter Bar */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg sm:text-xl font-black text-slate-800">
-              Pilih Kategori Kecerdasan Anak
+              Pilih Kategori Kecerdasan Anak (10 Game APE)
             </h2>
             <span className="text-xs font-bold text-slate-500 tabular-nums">
               Menampilkan {filteredGames.length} Modul Permainan
@@ -384,30 +560,38 @@ export default function PortalLobby({
           </div>
         </section>
 
-        {/* Games Grid */}
+        {/* 10 Games Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {filteredGames.map((game) => {
             const playCount = completedGames[game.id] || 0;
+            const isDailyTarget =
+              !dailyChallenge.completed && dailyChallenge.gameId === game.id;
             return (
               <div
                 key={game.id}
-                className={`${game.cardStyle} border-4 rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between`}
+                className={`${game.cardStyle} ${
+                  isDailyTarget ? 'ring-4 ring-amber-400' : ''
+                } border-4 rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between relative`}
               >
                 <div>
                   {/* Top Metadata Line (Zero-Pill Unboxed Text with Separator) */}
                   <div className="flex items-center justify-between text-xs font-extrabold text-slate-600 mb-4">
-                    <span>{game.intelligenceLabel}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="text-amber-700 tabular-nums flex items-center gap-1">
+                    <span>
+                      {game.numberBadge} · {game.intelligenceLabel}
+                    </span>
+                    <span className="text-amber-700 tabular-nums flex items-center gap-1 shrink-0">
                       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                      {playCount > 0 ? `${playCount}x Selesai` : game.badgeText}
+                      {playCount > 0 ? `${playCount}x` : game.badgeText}
                     </span>
                   </div>
 
                   {/* Icon & Title */}
                   <div className="flex items-start gap-4 mb-4">
                     <button
-                      onClick={() => soundManager.speak(game.voiceIntro)}
+                      onClick={() => {
+                        soundManager.playPop();
+                        soundManager.speak(game.voiceIntro);
+                      }}
                       className="w-20 h-20 rounded-3xl bg-white border-2 border-slate-200 shadow-inner flex items-center justify-center text-5xl shrink-0 hover:scale-105 transition-transform cursor-pointer"
                       title="Dengarkan penjelasan suara"
                     >
@@ -468,7 +652,10 @@ export default function PortalLobby({
                   </button>
 
                   <button
-                    onClick={() => soundManager.speak(game.voiceIntro)}
+                    onClick={() => {
+                      soundManager.playPop();
+                      soundManager.speak(game.voiceIntro);
+                    }}
                     className="p-3.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 border-2 border-slate-200 shadow-sm transition-all min-h-[48px] min-w-[48px] flex items-center justify-center cursor-pointer"
                     aria-label="Dengarkan Suara"
                     title="Dengarkan Suara"
@@ -489,10 +676,10 @@ export default function PortalLobby({
             </div>
             <div>
               <h3 className="text-xl font-black text-slate-800 mb-1">
-                Album Stiker Bintang & Sertifikat Kelulusan APE
+                Album Stiker Bintang & Sertifikat Kelulusan 10 Game APE
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 font-medium">
-                Kumpulkan stiker bintang emas dari setiap permainan dan cetak sertifikat kebanggaan resmi TK Paud Harapan Kita Gadingan!
+                Kumpulkan stiker bintang emas dari setiap permainan dan Tantangan Harian, lalu cetak sertifikat resmi TK Paud Harapan Kita Gadingan!
               </p>
             </div>
           </div>
@@ -524,7 +711,7 @@ export default function PortalLobby({
       <footer className="bg-white/80 border-t border-emerald-200 py-5 px-4 text-center text-xs text-slate-500 font-semibold">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>
-            Portal Game Edukatif (APE) · <strong>TK Paud Harapan Kita Gadingan</strong>
+            Portal 10 Game Edukatif (APE) · <strong>TK Paud Harapan Kita Gadingan</strong>
           </div>
           <div className="flex items-center gap-2">
             <span>Situs Utama Sekolah:</span>
